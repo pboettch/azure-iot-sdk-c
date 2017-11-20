@@ -354,6 +354,7 @@ static void deviceTwinCallback(DEVICE_TWIN_UPDATE_STATE update_state, const unsi
             free(device->cb_payload);
         }
         device->cb_payload = malloc_and_copy_unsigned_char(payload, size);
+        printf("Received data <<%s>>\n", device->cb_payload);
         (void) Unlock(device->lock);
     }
 }
@@ -483,6 +484,7 @@ static int dt_e2e_parse_twin_version(const char *deviceTwinData, bool jsonFromGe
 static int dt_e2e_gettwin_version(IOTHUB_SERVICE_CLIENT_DEVICE_TWIN_HANDLE serviceClientDeviceTwinHandle, IOTHUB_PROVISIONED_DEVICE* deviceToUse)
 {
     char *deviceTwinData = IoTHubDeviceTwin_GetTwin(serviceClientDeviceTwinHandle, deviceToUse->deviceId);
+    printf("InitialDevice = <<%s>>\n", deviceTwinData);
     ASSERT_IS_NOT_NULL_WITH_MSG(deviceTwinData, "IoTHubDeviceTwin_GetTwin failed");
     int version = dt_e2e_parse_twin_version(deviceTwinData, true);
 
@@ -527,8 +529,12 @@ void dt_e2e_get_complete_desired_test(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol,
     char *buffer = malloc_and_fill_desired_payload(expected_desired_string, expected_desired_integer);
     ASSERT_IS_NOT_NULL_WITH_MSG(buffer, "failed to create the payload for IoTHubDeviceTwin_UpdateTwin");
 
+    printf("calling IoTHubDeviceTwin_UpdateTwin\n");
     char *deviceTwinData = IoTHubDeviceTwin_UpdateTwin(serviceClientDeviceTwinHandle, deviceToUse->deviceId, buffer);
+    printf("IoTHubDeviceTwin_UpdateTwin returned <<%s>>\n", deviceTwinData);
     ASSERT_IS_NOT_NULL_WITH_MSG(deviceTwinData, "IoTHubDeviceTwin_UpdateTwin failed");
+
+    printf("Sleeping 3 seconds...\n");
     ThreadAPI_Sleep(3000);
 
     JSON_Value *root_value = NULL;

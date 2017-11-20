@@ -1179,11 +1179,13 @@ static void mqtt_notification_callback(MQTT_MESSAGE_HANDLE msgHandle, void* call
                                 if (msg_entry->device_twin_msg_type == RETRIEVE_PROPERTIES)
                                 {
                                     /* Codes_SRS_IOTHUB_MQTT_TRANSPORT_07_054: [ If type is IOTHUB_TYPE_DEVICE_TWIN, then on success if msg_type is RETRIEVE_PROPERTIES then mqtt_notification_callback shall call IoTHubClient_LL_RetrievePropertyComplete... ] */
+                                    printf("TWIN CALLBACK RETRIEVE PROPERTIES:: %*s\n", (int)payload->length, payload->message);
                                     IoTHubClient_LL_RetrievePropertyComplete(transportData->llClientHandle, DEVICE_TWIN_UPDATE_COMPLETE, payload->message, payload->length);
                                 }
                                 else
                                 {
                                     /* Codes_SRS_IOTHUB_MQTT_TRANSPORT_07_055: [ if device_twin_msg_type is not RETRIEVE_PROPERTIES then mqtt_notification_callback shall call IoTHubClient_LL_ReportedStateComplete ] */
+                                    printf("TWIN CALLBACK REPORTED STATE:: %*s", (int)payload->length, payload->message);
                                     IoTHubClient_LL_ReportedStateComplete(transportData->llClientHandle, msg_entry->iothub_msg_id, status_code);
                                 }
                                 free(msg_entry);
