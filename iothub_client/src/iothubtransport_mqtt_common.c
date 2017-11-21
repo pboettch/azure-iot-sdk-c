@@ -1161,13 +1161,20 @@ static void mqtt_notification_callback(MQTT_MESSAGE_HANDLE msgHandle, void* call
                 else
                 {
                     const APP_PAYLOAD* payload = mqttmessage_getApplicationMsg(msgHandle);
+                    printf("NOTIFY CALLBACK : %*s\n", (int)payload->length, payload->message);
                     if (notification_msg)
                     {
+                        printf("notification-msg, IoTHubClient_LL_RetrievePropertyComplete...\n");
                         IoTHubClient_LL_RetrievePropertyComplete(transportData->llClientHandle, DEVICE_TWIN_UPDATE_PARTIAL, payload->message, payload->length);
                     }
                     else
                     {
                         PDLIST_ENTRY dev_twin_item = transportData->ack_waiting_queue.Flink;
+                        if (dev_twin_item == &transportData->ack_waiting_queue)
+                        {
+                            printf("waiting ack queue is NULL\n");
+                        }
+                        
                         while (dev_twin_item != &transportData->ack_waiting_queue)
                         {
                             DLIST_ENTRY saveListEntry;
