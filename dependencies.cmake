@@ -33,3 +33,8 @@ else()
         add_subdirectory(deps/uhttp)
     endif()
 endif()
+
+get_target_property(AZURE_C_SHARED_UTILITY_INTERFACE_INCLUDE_DIRECTORIES aziotsharedutil INTERFACE_INCLUDE_DIRECTORIES)
+if(AZURE_C_SHARED_UTILITY_INTERFACE_INCLUDE_DIRECTORIES)
+    include_directories(${AZURE_C_SHARED_UTILITY_INTERFACE_INCLUDE_DIRECTORIES})
+endif()
