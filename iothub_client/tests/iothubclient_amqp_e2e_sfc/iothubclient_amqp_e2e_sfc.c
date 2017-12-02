@@ -96,6 +96,7 @@ BEGIN_TEST_SUITE(iothubclient_amqp_e2e_sfc)
     //    e2e_c2d_svc_fault_ctrl_kill_TCP_connection(AMQP_Protocol);
     //}
 
+#if 0
     TEST_FUNCTION(IoTHub_AMQP_e2e_c2d_svc_fault_ctrl_kill_AMQP_connection)
     {
         e2e_c2d_svc_fault_ctrl_AMQP_kill_connection(AMQP_Protocol);
@@ -105,12 +106,13 @@ BEGIN_TEST_SUITE(iothubclient_amqp_e2e_sfc)
     {
         e2e_c2d_svc_fault_ctrl_AMQP_kill_session(AMQP_Protocol);
     }
+#endif
 
     //// FAIL - DRD failure on Linux, if it runs with others
-    //TEST_FUNCTION(IoTHub_AMQP_e2e_c2d_svc_fault_ctrl_kill_AMQP_CBS_request_link)
-    //{
-    //    e2e_c2d_svc_fault_ctrl_AMQP_kill_CBS_request_link(AMQP_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_AMQP_e2e_c2d_svc_fault_ctrl_kill_AMQP_CBS_request_link)
+    {
+        e2e_c2d_svc_fault_ctrl_AMQP_kill_CBS_request_link(AMQP_Protocol);
+    }
 
     //// FAIL - DRD failure on Linux, crash on Windows if it runs with others
     //TEST_FUNCTION(IoTHub_AMQP_e2e_c2d_svc_fault_ctrl_kill_AMQP_CBS_response_link)
