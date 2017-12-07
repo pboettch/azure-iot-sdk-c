@@ -24,11 +24,10 @@ BEGIN_TEST_SUITE(iothubclient_mqtt_e2e_sfc)
     //***********************************************************
     // D2C
     //***********************************************************
-    //// FAIL - only on Linux
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_kill_Tcp)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_kill_TCP_connection(MQTT_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_kill_Tcp)
+    {
+        e2e_d2c_svc_fault_ctrl_kill_TCP_connection(MQTT_Protocol);
+    }
 
     //// FAIL - service alive
     //TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_throttling_reconnect)
@@ -57,11 +56,10 @@ BEGIN_TEST_SUITE(iothubclient_mqtt_e2e_sfc)
     //***********************************************************
     // C2D
     //***********************************************************
-    //// FAIL - only on Linux
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_kill_Tcp)
-    //{
-    //    e2e_c2d_svc_fault_ctrl_kill_TCP_connection(MQTT_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_kill_Tcp)
+    {
+        e2e_c2d_svc_fault_ctrl_kill_TCP_connection(MQTT_Protocol);
+    }
 
     //// FAIL - service alive
     //TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_throttling_reconnect)
@@ -75,11 +73,10 @@ BEGIN_TEST_SUITE(iothubclient_mqtt_e2e_sfc)
     //    e2e_c2d_svc_fault_ctrl_message_quota_exceeded(MQTT_Protocol);
     //}
 
-    //// FAIL - service alive
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_auth_error)
-    //{
-    //    e2e_c2d_svc_fault_ctrl_auth_error(MQTT_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_auth_error)
+    {
+        e2e_c2d_svc_fault_ctrl_auth_error(MQTT_Protocol);
+    }
 
     //// FAIL - retry failing with error
     //TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_shut_down)
