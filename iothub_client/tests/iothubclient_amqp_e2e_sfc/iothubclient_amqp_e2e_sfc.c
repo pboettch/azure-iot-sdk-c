@@ -25,20 +25,20 @@ BEGIN_TEST_SUITE(iothubclient_amqp_e2e_sfc)
     // D2C
     //***********************************************************
     //// FAIL - only on Linux
-    //TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_kill_Tcp)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_kill_TCP_connection_with_transport_status_check(AMQP_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_kill_Tcp)
+    {
+        e2e_d2c_svc_fault_ctrl_kill_TCP_connection_with_transport_status_check(AMQP_Protocol);
+    }
 
-    //TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_kill_AMQP_connection)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_AMQP_kill_connection(AMQP_Protocol);
-    //}
-
-    //TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_kill_AMQP_session)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_AMQP_kill_session(AMQP_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_kill_AMQP_connection)
+    {
+        e2e_d2c_svc_fault_ctrl_AMQP_kill_connection(AMQP_Protocol);
+    }
+	
+    TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_kill_AMQP_session)
+    {
+        e2e_d2c_svc_fault_ctrl_AMQP_kill_session(AMQP_Protocol);
+    }
 
     //// FAIL - no recovery
     //TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_kill_AMQP_CBS_request_link)
@@ -138,13 +138,14 @@ BEGIN_TEST_SUITE(iothubclient_amqp_e2e_sfc)
 
     TEST_FUNCTION(IoTHub_AMQP_e2e_c2d_svc_fault_ctrl_auth_error)
     {
-        e2e_c2d_svc_fault_ctrl_auth_error(AMQP_Protocol);
+    	e2e_c2d_svc_fault_ctrl_auth_error(AMQP_Protocol);
     }
+    
 
     //// FAIL - service alive
-    //TEST_FUNCTION(IoTHub_AMQP_e2e_c2d_svc_fault_ctrl_kill_AMQP_shut_down)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_AMQP_shut_down(AMQP_Protocol);
-    //}
+    //// TEST_FUNCTION(IoTHub_AMQP_e2e_c2d_svc_fault_ctrl_kill_AMQP_shut_down)
+    //// {
+    ////     e2e_d2c_svc_fault_ctrl_AMQP_shut_down(AMQP_Protocol);
+    //// }
 
 END_TEST_SUITE(iothubclient_amqp_e2e_sfc)

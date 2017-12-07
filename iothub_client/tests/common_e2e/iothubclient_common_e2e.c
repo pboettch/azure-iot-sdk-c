@@ -564,7 +564,7 @@ bool client_received_confirmation(D2C_MESSAGE_HANDLE d2cMessage)
     return result;
 }
 
-D2C_MESSAGE_HANDLE client_create_with_properies_and_send_d2c(IOTHUB_CLIENT_HANDLE iotHubClientHandle, MAP_HANDLE mapHandle)
+D2C_MESSAGE_HANDLE send_error_injection_message(IOTHUB_CLIENT_HANDLE iotHubClientHandle, const char* faultOperationType, const char* faultOperationCloseReason, const char* faultOperationDelayInSecs)
 {
     IOTHUB_MESSAGE_HANDLE msgHandle;
     IOTHUB_CLIENT_RESULT result;
@@ -577,21 +577,9 @@ D2C_MESSAGE_HANDLE client_create_with_properies_and_send_d2c(IOTHUB_CLIENT_HANDL
 
     MAP_HANDLE msgMapHandle = IoTHubMessage_Properties(msgHandle);
 
-    const char*const* keys;
-    const char*const* values;
-    size_t propCount;
-
-    MAP_RESULT mapResult = Map_GetInternals(mapHandle, &keys, &values, &propCount);
-    if (mapResult == MAP_OK)
-    {
-        for (size_t i = 0; i < propCount; i++)
-        {
-            if (Map_AddOrUpdate(msgMapHandle, keys[i], values[i]) != MAP_OK)
-            {
-                ASSERT_FAIL("Map_AddOrUpdate failed!");
-            }
-        }
-    }
+    ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationType", faultOperationType));
+    ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationCloseReason", faultOperationCloseReason));
+    ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationDelayInSecs", faultOperationDelayInSecs));
 
     sendData->msgHandle = msgHandle;
 
@@ -604,30 +592,29 @@ D2C_MESSAGE_HANDLE client_create_with_properies_and_send_d2c(IOTHUB_CLIENT_HANDL
 
 static void connection_status_callback(IOTHUB_CLIENT_CONNECTION_STATUS status, IOTHUB_CLIENT_CONNECTION_STATUS_REASON reason, void* userContextCallback)
 {
-    if (reason == IOTHUB_CLIENT_CONNECTION_OK)
-    {
-        CONNECTION_STATUS_INFO* connection_status_info = (CONNECTION_STATUS_INFO*)userContextCallback;
-        if (Lock(connection_status_info->lock) != LOCK_OK)
-        {
-            ASSERT_FAIL("unable to lock");
-        }
-        else
-        {
-            if ((connection_status_info->currentStatus == IOTHUB_CLIENT_CONNECTION_AUTHENTICATED) &&
-                (status == IOTHUB_CLIENT_CONNECTION_UNAUTHENTICATED))
-            {
-                connection_status_info->connFaultHappened = true;
-            }
-            if ((connection_status_info->currentStatus == IOTHUB_CLIENT_CONNECTION_UNAUTHENTICATED) &&
-                (status == IOTHUB_CLIENT_CONNECTION_AUTHENTICATED))
-            {
-                connection_status_info->connRestored = true;
-            }
-            connection_status_info->currentStatus = status;
-            connection_status_info->currentStatusReason = reason;
+    printf("connection_status_callback: status=<%d>, reason=<%d>\n", status, reason);
 
-            (void)Unlock(connection_status_info->lock);
+    CONNECTION_STATUS_INFO* connection_status_info = (CONNECTION_STATUS_INFO*)userContextCallback;
+    if (Lock(connection_status_info->lock) != LOCK_OK)
+    {
+        ASSERT_FAIL("unable to lock");
+    }
+    else
+    {
+        if ((connection_status_info->currentStatus == IOTHUB_CLIENT_CONNECTION_AUTHENTICATED) &&
+            (status == IOTHUB_CLIENT_CONNECTION_UNAUTHENTICATED))
+        {
+            connection_status_info->connFaultHappened = true;
         }
+        if ((connection_status_info->currentStatus == IOTHUB_CLIENT_CONNECTION_UNAUTHENTICATED) &&
+            (status == IOTHUB_CLIENT_CONNECTION_AUTHENTICATED))
+        {
+            connection_status_info->connRestored = true;
+        }
+        connection_status_info->currentStatus = status;
+        connection_status_info->currentStatusReason = reason;
+
+        (void)Unlock(connection_status_info->lock);
     }
 }
 
@@ -713,6 +700,8 @@ void clear_connection_status_info_flags()
     {
         g_connection_status_info.connFaultHappened = false;
         g_connection_status_info.connRestored = false;
+        g_connection_status_info.currentStatus = IOTHUB_CLIENT_CONNECTION_UNAUTHENTICATED;
+        g_connection_status_info.currentStatusReason = IOTHUB_CLIENT_CONNECTION_NO_NETWORK;
         (void)Unlock(g_connection_status_info.lock);
     }
 }
@@ -796,6 +785,8 @@ void e2e_d2c_with_svc_fault_ctrl(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, cons
 
     IOTHUB_PROVISIONED_DEVICE* deviceToUse = IoTHubAccount_GetSASDevice(g_iothubAcctInfo);
 
+    clear_connection_status_info_flags();
+
     // Create the IoT Hub Data
     iotHubClientHandle = client_connect_to_hub(deviceToUse, protocol);
 
@@ -807,24 +798,7 @@ void e2e_d2c_with_svc_fault_ctrl(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, cons
     ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
 
     (void)printf("Send server fault control message...\r\n");
-    MAP_HANDLE propMap = Map_Create(NULL);
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationType", faultOperationType) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationType!");
-    }
-
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationCloseReason", faultOperationCloseReason) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationCloseReason!");
-    }
-
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationDelayInSecs", faultOperationDelayInSecs) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationDelayInSecs!");
-    }
-    clear_connection_status_info_flags();
-    d2cMessage = client_create_with_properies_and_send_d2c(iotHubClientHandle, propMap);
-    Map_Destroy(propMap);
+    d2cMessage = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
 
     ThreadAPI_Sleep(3000);
 
@@ -863,7 +837,11 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
 
     // arrange
     IOTHUB_CLIENT_HANDLE iotHubClientHandle;
-    D2C_MESSAGE_HANDLE d2cMessage;
+    D2C_MESSAGE_HANDLE d2cMessageInitial;
+    D2C_MESSAGE_HANDLE d2cMessageFaultInjection;
+    D2C_MESSAGE_HANDLE d2cMessageDuringRetry;
+
+    clear_connection_status_info_flags();
 
     // Create the IoT Hub Data
     iotHubClientHandle = client_connect_to_hub(deviceToUse, protocol);
@@ -874,51 +852,39 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
 
     // Send the Event from the client
     (void)printf("Send message and wait for confirmation...\r\n");
-    d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_BYTE_ARRAY);
+    d2cMessageInitial = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_BYTE_ARRAY);
+    
     // Wait for confirmation that the event was recevied
-    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage);
+    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageInitial);
     ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
-    destroy_d2c_message_handle(d2cMessage);
+    // destroy_d2c_message_handle(d2cMessageInitial);
 
     // Send the Fault Control Event from the client
     (void)printf("Send server fault control message...\r\n");
-    MAP_HANDLE propMap = Map_Create(NULL);
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationType", faultOperationType) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationType!");
-    }
-
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationCloseReason", faultOperationCloseReason) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationCloseReason!");
-    }
-
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationDelayInSecs", faultOperationDelayInSecs) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationDelayInSecs!");
-    }
-    clear_connection_status_info_flags();
-    d2cMessage = client_create_with_properies_and_send_d2c(iotHubClientHandle, propMap);
-    Map_Destroy(propMap);
+    d2cMessageFaultInjection = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
 
     // Wait for connection status change (restored)
+    printf("wait for restore...\n");
     bool connStatus = client_wait_for_connection_restored();
-    destroy_d2c_message_handle(d2cMessage);
+    //destroy_d2c_message_handle(d2cMessageFaultInjection);
     ASSERT_IS_TRUE_WITH_MSG(connStatus, "Fault injection failed - connection has not been restored");
 
     // Wait for connection status change (fault)
+    printf("wait for fault...\n");
     connStatus = client_wait_for_connection_fault();
     ASSERT_IS_TRUE_WITH_MSG(connStatus, "Fault injection failed - no fault happened");
 
     // Wait for connection status change (restored)
+    printf("wait for restore...\n");
     connStatus = client_wait_for_connection_restored();
     ASSERT_IS_TRUE_WITH_MSG(connStatus, "Fault injection failed - connection has not been restored");
 
     // Send the Event from the client
     (void)printf("Send message after the server fault and wait for confirmation...\r\n");
-    d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_BYTE_ARRAY);
+    d2cMessageDuringRetry = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_BYTE_ARRAY);
     // Wait for confirmation that the event was recevied
-    dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage);
+    printf("wait for d2c confirm...\n");
+    dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageDuringRetry);
     ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
 
     // close the client connection
@@ -928,10 +894,13 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
     (void)platform_init();
 
     // Wait for the message to arrive
-    service_wait_for_d2c_event_arrival(deviceToUse, d2cMessage);
+    printf("waiting for d2c arrive...\n");
+    service_wait_for_d2c_event_arrival(deviceToUse, d2cMessageDuringRetry);
 
     // cleanup
-    destroy_d2c_message_handle(d2cMessage);
+    destroy_d2c_message_handle(d2cMessageInitial);
+    destroy_d2c_message_handle(d2cMessageFaultInjection);
+    destroy_d2c_message_handle(d2cMessageDuringRetry);
 }
 
 void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, const char* faultOperationType, const char* faultOperationCloseReason, const char* faultOperationDelayInSecs, bool setTimeoutOption)
@@ -941,6 +910,8 @@ void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER prot
     // arrange
     IOTHUB_CLIENT_HANDLE iotHubClientHandle;
     D2C_MESSAGE_HANDLE d2cMessage;
+
+    clear_connection_status_info_flags();
 
     // Create the IoT Hub Data
     iotHubClientHandle = client_connect_to_hub(deviceToUse, protocol);
@@ -971,24 +942,7 @@ void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER prot
 
     // Send the Fault Control Event from the client
     (void)printf("Send server fault control message...\r\n");
-    MAP_HANDLE propMap = Map_Create(NULL);
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationType", faultOperationType) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationType!");
-    }
-
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationCloseReason", faultOperationCloseReason) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationCloseReason!");
-    }
-
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationDelayInSecs", faultOperationDelayInSecs) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationDelayInSecs!");
-    }
-    clear_connection_status_info_flags();
-    d2cMessage = client_create_with_properies_and_send_d2c(iotHubClientHandle, propMap);
-    Map_Destroy(propMap);
+    d2cMessage = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
 
     ThreadAPI_Sleep(3000);
 
@@ -1178,6 +1132,8 @@ void e2e_c2d_with_svc_fault_ctrl(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, cons
     D2C_MESSAGE_HANDLE d2cMessage;
     IOTHUB_PROVISIONED_DEVICE* deviceToUse = IoTHubAccount_GetSASDevice(g_iothubAcctInfo);
 
+    clear_connection_status_info_flags();
+
     // Create device client
     iotHubClientHandle = client_connect_to_hub(deviceToUse, protocol);
 
@@ -1206,26 +1162,7 @@ void e2e_c2d_with_svc_fault_ctrl(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, cons
     ASSERT_IS_TRUE_WITH_MSG(receiveUserContext->wasFound, "Failure retrieving data from C2D"); // was found is written by the callback...
 
     (void)printf("Send server fault control message...\r\n");
-    clear_connection_status_info_flags();
-    MAP_HANDLE propMap = Map_Create(NULL);
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationType", faultOperationType) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationType!");
-    }
-
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationCloseReason", faultOperationCloseReason) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationCloseReason!");
-    }
-
-    if (Map_AddOrUpdate(propMap, "AzIoTHub_FaultOperationDelayInSecs", faultOperationDelayInSecs) != MAP_OK)
-    {
-        ASSERT_FAIL("Map_AddOrUpdate failed for AzIoTHub_FaultOperationDelayInSecs!");
-    }
-    d2cMessage = client_create_with_properies_and_send_d2c(iotHubClientHandle, propMap);
-    Map_Destroy(propMap);
-
-    ThreadAPI_Sleep(10000);
+    d2cMessage = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
 
     // Send message
     receiveUserContext->wasFound = false;
