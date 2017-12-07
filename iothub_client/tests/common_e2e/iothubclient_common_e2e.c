@@ -142,6 +142,7 @@ static int IoTHubCallback(void* context, const char* data, size_t size)
 
 static void ReceiveConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result, void* userContextCallback)
 {
+    printf("ReceiveConfirmationCallback invoked, result=<%s>\n", ENUM_TO_STRING(IOTHUB_CLIENT_CONFIRMATION_RESULT, result));
     (void)result;
     EXPECTED_SEND_DATA* expectedData = (EXPECTED_SEND_DATA*)userContextCallback;
     if (expectedData != NULL)
@@ -580,6 +581,7 @@ D2C_MESSAGE_HANDLE send_error_injection_message(IOTHUB_CLIENT_HANDLE iotHubClien
     ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationType", faultOperationType));
     ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationCloseReason", faultOperationCloseReason));
     ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationDelayInSecs", faultOperationDelayInSecs));
+    //ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationDurationInSecs", "240000"));
 
     sendData->msgHandle = msgHandle;
 
@@ -944,7 +946,9 @@ void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER prot
     (void)printf("Send server fault control message...\r\n");
     d2cMessage = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
 
+    printf("Sleeping after sending fault injection...\n");
     ThreadAPI_Sleep(3000);
+    printf("Woke up after sending fault injection...\n");
 
     if ((strcmp(faultOperationType, "InvokeThrottling") == 0) ||
         (strcmp(faultOperationType, "InvokeMaxMessageQuota") == 0) ||
