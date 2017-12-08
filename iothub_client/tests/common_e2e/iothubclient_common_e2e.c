@@ -846,10 +846,10 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
 
     // arrange
     IOTHUB_CLIENT_HANDLE iotHubClientHandle;
-    D2C_MESSAGE_HANDLE d2cMessageInitial;
-    D2C_MESSAGE_HANDLE d2cMessageInitialHack;
-    D2C_MESSAGE_HANDLE d2cMessageFaultInjection;
-    D2C_MESSAGE_HANDLE d2cMessageDuringRetry;
+    D2C_MESSAGE_HANDLE d2cMessageInitial = NULL;
+    D2C_MESSAGE_HANDLE d2cMessageInitialHack = NULL;
+    D2C_MESSAGE_HANDLE d2cMessageFaultInjection = NULL;
+    D2C_MESSAGE_HANDLE d2cMessageDuringRetry = NULL;
 
     clear_connection_status_info_flags();
 
@@ -934,7 +934,9 @@ void e2e_d2c_with_svc_fault_ctrl_error_message_callback(IOTHUB_CLIENT_TRANSPORT_
 
     // arrange
     IOTHUB_CLIENT_HANDLE iotHubClientHandle;
-    D2C_MESSAGE_HANDLE d2cMessage;
+    D2C_MESSAGE_HANDLE d2cMessageInitial = NULL;
+    D2C_MESSAGE_HANDLE d2cMessageFaultInjection = NULL;
+    D2C_MESSAGE_HANDLE d2cMessageDuringRetry = NULL;
 
     clear_connection_status_info_flags();
 
@@ -953,15 +955,15 @@ void e2e_d2c_with_svc_fault_ctrl_error_message_callback(IOTHUB_CLIENT_TRANSPORT_
 
     // Send the Event from the client
     (void)printf("Send message and wait for confirmation...\r\n");
-    d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
+    d2cMessageInitial = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
 
     // Wait for confirmation that the event was recevied
-    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage, IOTHUB_CLIENT_CONFIRMATION_OK);
+    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageInitial, IOTHUB_CLIENT_CONFIRMATION_OK);
     ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
 
     // Send the Fault Control Event from the client
     (void)printf("Send server fault control message...\r\n");
-    d2cMessage = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
+    d2cMessageFaultInjection = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
 
     printf("Sleeping after sending fault injection...\n");
     ThreadAPI_Sleep(3000);
@@ -973,8 +975,8 @@ void e2e_d2c_with_svc_fault_ctrl_error_message_callback(IOTHUB_CLIENT_TRANSPORT_
         )
     {
         (void)printf("Sending message and expect no confirmation...\r\n");
-        d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
-        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage, IOTHUB_CLIENT_CONFIRMATION_ERROR);
+        d2cMessageDuringRetry = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
+        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageDuringRetry, IOTHUB_CLIENT_CONFIRMATION_ERROR);
         ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IoT Hub...\r\n"); // was received by the callback...
     }
     else if ((strcmp(faultOperationType, "ShutDownAmqp") == 0) ||
@@ -982,8 +984,8 @@ void e2e_d2c_with_svc_fault_ctrl_error_message_callback(IOTHUB_CLIENT_TRANSPORT_
     {
         // Send the Event from the client and expect no answer and no recovery (after 60 sec wait)
         (void)printf("ShutDownAmqp - Sending message and expect no confirmation...\r\n");
-        d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
-        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage, IOTHUB_CLIENT_CONFIRMATION_OK);
+        d2cMessageDuringRetry = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
+        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageDuringRetry, IOTHUB_CLIENT_CONFIRMATION_OK);
         ASSERT_IS_FALSE_WITH_MSG(dataWasRecv, "Service still answering...\r\n"); // was received by the callback...
     }
 
@@ -994,10 +996,12 @@ void e2e_d2c_with_svc_fault_ctrl_error_message_callback(IOTHUB_CLIENT_TRANSPORT_
     (void)platform_init();
 
     // Wait for the message to arrive
-    service_wait_for_d2c_event_arrival(deviceToUse, d2cMessage);
+    service_wait_for_d2c_event_arrival(deviceToUse, d2cMessageDuringRetry);
 
     // cleanup
-    destroy_d2c_message_handle(d2cMessage);
+    destroy_d2c_message_handle(d2cMessageInitial);
+    destroy_d2c_message_handle(d2cMessageFaultInjection);
+    destroy_d2c_message_handle(d2cMessageDuringRetry);
 }
 
 EXPECTED_RECEIVE_DATA *service_create_c2d(const char *content)
