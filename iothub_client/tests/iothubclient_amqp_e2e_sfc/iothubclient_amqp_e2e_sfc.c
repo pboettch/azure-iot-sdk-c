@@ -7,6 +7,9 @@
 
 static TEST_MUTEX_HANDLE g_dllByDll;
 
+// #define RUN_PASSING_TESTS
+#define RUN_UNDER_INV_FAILING_TESTS
+
 BEGIN_TEST_SUITE(iothubclient_amqp_e2e_sfc)
 
     TEST_SUITE_INITIALIZE(TestClassInitialize)
@@ -24,7 +27,6 @@ BEGIN_TEST_SUITE(iothubclient_amqp_e2e_sfc)
     //***********************************************************
     // D2C
     //***********************************************************
-#define RUN_PASSING_TESTS
 #ifdef RUN_PASSING_TESTS
     TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_kill_Tcp)
     {
@@ -40,9 +42,7 @@ BEGIN_TEST_SUITE(iothubclient_amqp_e2e_sfc)
     {
         e2e_d2c_svc_fault_ctrl_AMQP_kill_session(AMQP_Protocol);
     }
-#endif // RUN_PASSING_TESTS
 
-#ifdef RUN_UNDER_INV_FAILING_TESTS
     //// FAIL - no recovery
     TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_kill_AMQP_CBS_request_link)
     {
@@ -53,7 +53,7 @@ BEGIN_TEST_SUITE(iothubclient_amqp_e2e_sfc)
     {
         e2e_d2c_svc_fault_ctrl_AMQP_kill_CBS_response_link(AMQP_Protocol);
     }
-#endif // RUN_UNDER_INV_FAILING_TESTS
+#endif // RUN_PASSING_TESTS
 
 
 #ifdef RUN_PASSING_TESTS
@@ -69,7 +69,7 @@ BEGIN_TEST_SUITE(iothubclient_amqp_e2e_sfc)
     {
         e2e_d2c_svc_fault_ctrl_AMQP_kill_C2D_link(AMQP_Protocol);
     }
-#endif
+#endif // RUN_UNDER_INV_FAILING_TESTS
 
 #ifdef RUN_PASSING_TESTS
     TEST_FUNCTION(IoTHub_AMQP_e2e_d2c_svc_fault_ctrl_throttling_reconnect)

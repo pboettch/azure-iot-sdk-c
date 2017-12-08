@@ -5,6 +5,10 @@
 #include "iothubclient_common_e2e.h"
 #include "iothubtransportmqtt.h"
 
+//#define RUN_PASSING_TESTS
+#define RUN_UNDER_INV_FAILING_TESTS
+
+
 static TEST_MUTEX_HANDLE g_dllByDll;
 
 BEGIN_TEST_SUITE(iothubclient_mqtt_e2e_sfc)
@@ -24,35 +28,37 @@ BEGIN_TEST_SUITE(iothubclient_mqtt_e2e_sfc)
     //***********************************************************
     // D2C
     //***********************************************************
-    //// FAIL - only on Linux
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_kill_Tcp)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_kill_TCP_connection(MQTT_Protocol);
-    //}
+#ifdef RUN_PASSING_TESTS
+    TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_kill_Tcp)
+    {
+        e2e_d2c_svc_fault_ctrl_kill_TCP_connection(MQTT_Protocol);
+    }
+#endif
 
-    //// FAIL - service alive
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_throttling_reconnect)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_MQTT_throttling_reconnect(MQTT_Protocol);
-    //}
+#ifdef RUN_UNDER_INV_FAILING_TESTS
+	// This passes if I add the 2nd retry...
+    // TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_throttling_reconnect)
+    // {
+    //     e2e_d2c_svc_fault_ctrl_MQTT_throttling_reconnect(MQTT_Protocol);
+    // }
 
-    //// FAIL - service alive
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_message_quota_exceeded)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_MQTT_message_quota_exceeded(MQTT_Protocol);
-    //}
+    // TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_message_quota_exceeded)
+    // {
+    //     e2e_d2c_svc_fault_ctrl_MQTT_message_quota_exceeded(MQTT_Protocol);
+    // }
 
-    //// FAIL - service alive
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_auth_error)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_MQTT_auth_error(MQTT_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_auth_error)
+    {
+        e2e_d2c_svc_fault_ctrl_MQTT_auth_error(MQTT_Protocol);
+    }
+#endif
 
-    //// FAIL - retry failing with error
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_shut_down)
-    //{
-    //    e2e_d2c_svc_fault_ctrl_MQTT_shut_down(MQTT_Protocol);
-    //}
+
+#ifdef RUN_PASSING_TESTS
+    TEST_FUNCTION(IoTHub_MQTT_e2e_d2c_svc_fault_ctrl_shut_down)
+    {
+        e2e_d2c_svc_fault_ctrl_MQTT_shut_down(MQTT_Protocol);
+    }
 
     //***********************************************************
     // C2D
@@ -63,16 +69,16 @@ BEGIN_TEST_SUITE(iothubclient_mqtt_e2e_sfc)
     }
 
     //// FAIL - service alive
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_throttling_reconnect)
-    //{
-    //    e2e_c2d_svc_fault_ctrl_throttling_reconnect(MQTT_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_throttling_reconnect)
+    {
+        e2e_c2d_svc_fault_ctrl_throttling_reconnect(MQTT_Protocol);
+    }
 
     //// FAIL - service alive
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_message_quota_exceeded)
-    //{
-    //    e2e_c2d_svc_fault_ctrl_message_quota_exceeded(MQTT_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_message_quota_exceeded)
+    {
+        e2e_c2d_svc_fault_ctrl_message_quota_exceeded(MQTT_Protocol);
+    }
 
     TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_auth_error)
     {
@@ -80,9 +86,11 @@ BEGIN_TEST_SUITE(iothubclient_mqtt_e2e_sfc)
     }
 
     //// FAIL - retry failing with error
-    //TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_shut_down)
-    //{
-    //    e2e_c2d_svc_fault_ctrl_MQTT_shut_down(MQTT_Protocol);
-    //}
+    TEST_FUNCTION(IoTHub_MQTT_e2e_c2d_svc_fault_ctrl_shut_down)
+    {
+        e2e_c2d_svc_fault_ctrl_MQTT_shut_down(MQTT_Protocol);
+    }
+#endif // RUN_UNDER_INV_FAILING_TESTS
+
 
 END_TEST_SUITE(iothubclient_mqtt_e2e_sfc)
