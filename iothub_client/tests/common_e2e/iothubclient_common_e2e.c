@@ -73,6 +73,7 @@ typedef struct EXPECTED_SEND_DATA_TAG
     const char* expectedString;
     bool wasFound;
     bool dataWasRecv;
+    IOTHUB_CLIENT_CONFIRMATION_RESULT result;
     LOCK_HANDLE lock;
     IOTHUB_MESSAGE_HANDLE msgHandle;
 } EXPECTED_SEND_DATA;
@@ -143,7 +144,7 @@ static int IoTHubCallback(void* context, const char* data, size_t size)
 static void ReceiveConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result, void* userContextCallback)
 {
     printf("ReceiveConfirmationCallback invoked, result=<%s>\n", ENUM_TO_STRING(IOTHUB_CLIENT_CONFIRMATION_RESULT, result));
-    (void)result;
+
     EXPECTED_SEND_DATA* expectedData = (EXPECTED_SEND_DATA*)userContextCallback;
     if (expectedData != NULL)
     {
@@ -154,6 +155,7 @@ static void ReceiveConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result
         else
         {
             expectedData->dataWasRecv = true;
+            expectedData->result = result;
             (void)Unlock(expectedData->lock);
         }
     }
@@ -319,6 +321,7 @@ static EXPECTED_SEND_DATA* EventData_Create(void)
                 result->expectedString = tempString;
                 result->wasFound = false;
                 result->dataWasRecv = false;
+                result->result = IOTHUB_CLIENT_CONFIRMATION_ERROR;
             }
         }
     }
@@ -528,7 +531,7 @@ D2C_MESSAGE_HANDLE client_create_and_send_d2c(IOTHUB_CLIENT_HANDLE iotHubClientH
     return (D2C_MESSAGE_HANDLE)sendData;
 }
 
-bool client_wait_for_d2c_confirmation(D2C_MESSAGE_HANDLE d2cMessage)
+bool client_wait_for_d2c_confirmation(D2C_MESSAGE_HANDLE d2cMessage, IOTHUB_CLIENT_CONFIRMATION_RESULT expectedClientResult)
 {
     time_t beginOperation, nowTime;
 
@@ -538,16 +541,16 @@ bool client_wait_for_d2c_confirmation(D2C_MESSAGE_HANDLE d2cMessage)
         (difftime(nowTime, beginOperation) < MAX_CLOUD_TRAVEL_TIME) // time box
         )
     {
-        if (client_received_confirmation(d2cMessage))
+        if (client_received_confirmation(d2cMessage, expectedClientResult))
         {
             break;
         }
         ThreadAPI_Sleep(100);
     }
-    return (client_received_confirmation(d2cMessage));
+    return (client_received_confirmation(d2cMessage, expectedClientResult));
 }
 
-bool client_received_confirmation(D2C_MESSAGE_HANDLE d2cMessage)
+bool client_received_confirmation(D2C_MESSAGE_HANDLE d2cMessage, IOTHUB_CLIENT_CONFIRMATION_RESULT expectedClientResult)
 {
     bool result = false;
     EXPECTED_SEND_DATA* sendData = (EXPECTED_SEND_DATA*)d2cMessage;
@@ -559,6 +562,10 @@ bool client_received_confirmation(D2C_MESSAGE_HANDLE d2cMessage)
     else
     {
         result = sendData->dataWasRecv;
+        if (sendData->dataWasRecv == true)
+        {
+            ASSERT_ARE_EQUAL(int, expectedClientResult, sendData->result);
+        }
         (void)Unlock(sendData->lock);
     }
 
@@ -581,7 +588,7 @@ D2C_MESSAGE_HANDLE send_error_injection_message(IOTHUB_CLIENT_HANDLE iotHubClien
     ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationType", faultOperationType));
     ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationCloseReason", faultOperationCloseReason));
     ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationDelayInSecs", faultOperationDelayInSecs));
-    //ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationDurationInSecs", "240000"));
+    ASSERT_ARE_EQUAL(int, MAP_OK, Map_AddOrUpdate(msgMapHandle, "AzIoTHub_FaultOperationDurationInSecs", "240000"));
 
     sendData->msgHandle = msgHandle;
 
@@ -751,7 +758,7 @@ static void send_event_test(IOTHUB_PROVISIONED_DEVICE* deviceToUse, IOTHUB_CLIEN
         d2cMessage = client_create_and_send_d2c(iotHubClientHandle, test_message_creation[i]);
 
         // Wait for confirmation that the event was recevied
-        bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage);
+        bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage, IOTHUB_CLIENT_CONFIRMATION_OK);
         ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
 
         // close the client connection
@@ -796,7 +803,7 @@ void e2e_d2c_with_svc_fault_ctrl(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, cons
     (void)printf("Send message and wait for confirmation...\r\n");
     d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
     // Wait for confirmation that the event was recevied
-    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage);
+    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage, IOTHUB_CLIENT_CONFIRMATION_OK);
     ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
 
     (void)printf("Send server fault control message...\r\n");
@@ -812,7 +819,7 @@ void e2e_d2c_with_svc_fault_ctrl(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, cons
         d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
 
         // Wait for confirmation that the event was recevied
-        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage);
+        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage, IOTHUB_CLIENT_CONFIRMATION_OK);
         if (dataWasRecv)
             break;
 
@@ -840,6 +847,7 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
     // arrange
     IOTHUB_CLIENT_HANDLE iotHubClientHandle;
     D2C_MESSAGE_HANDLE d2cMessageInitial;
+    D2C_MESSAGE_HANDLE d2cMessageInitialHack;
     D2C_MESSAGE_HANDLE d2cMessageFaultInjection;
     D2C_MESSAGE_HANDLE d2cMessageDuringRetry;
 
@@ -852,12 +860,18 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
     IOTHUB_CLIENT_RESULT setConnResult = IoTHubClient_SetConnectionStatusCallback(iotHubClientHandle, connection_status_callback, &g_connection_status_info);
     ASSERT_ARE_EQUAL_WITH_MSG(IOTHUB_CLIENT_RESULT, IOTHUB_CLIENT_OK, setConnResult, "Failure setting connection status callback");
 
+    if (0 == strcmp(faultOperationType, "KillAmqpCBSLinkReq"))
+    {
+        size_t token_lifetime = 20;
+        IoTHubClient_SetOption(iotHubClientHandle, OPTION_SAS_TOKEN_LIFETIME, (const void*)&token_lifetime);
+    }
+
     // Send the Event from the client
     (void)printf("Send message and wait for confirmation...\r\n");
     d2cMessageInitial = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_BYTE_ARRAY);
     
     // Wait for confirmation that the event was recevied
-    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageInitial);
+    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageInitial, IOTHUB_CLIENT_CONFIRMATION_OK);
     ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
     // destroy_d2c_message_handle(d2cMessageInitial);
 
@@ -870,6 +884,14 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
     bool connStatus = client_wait_for_connection_restored();
     //destroy_d2c_message_handle(d2cMessageFaultInjection);
     ASSERT_IS_TRUE_WITH_MSG(connStatus, "Fault injection failed - connection has not been restored");
+
+    if (0 == strcmp(faultOperationType, "KillAmqpCBSLinkReq"))
+    {
+	    printf("Sleeping 40 seconds...\n");
+	    ThreadAPI_Sleep(40000);
+	    printf("Sending dummy msg to test fault...\n");
+	    d2cMessageInitialHack = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_BYTE_ARRAY);
+    }
 
     // Wait for connection status change (fault)
     printf("wait for fault...\n");
@@ -886,7 +908,7 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
     d2cMessageDuringRetry = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_BYTE_ARRAY);
     // Wait for confirmation that the event was recevied
     printf("wait for d2c confirm...\n");
-    dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageDuringRetry);
+    dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageDuringRetry, IOTHUB_CLIENT_CONFIRMATION_OK);
     ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
 
     // close the client connection
@@ -905,7 +927,8 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
     destroy_d2c_message_handle(d2cMessageDuringRetry);
 }
 
-void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, const char* faultOperationType, const char* faultOperationCloseReason, const char* faultOperationDelayInSecs, bool setTimeoutOption)
+// BUGBUG - tons of dup'd code here
+void e2e_d2c_with_svc_fault_ctrl_error_message_callback(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, const char* faultOperationType, const char* faultOperationCloseReason, const char* faultOperationDelayInSecs, bool setTimeoutOption)
 {
     IOTHUB_PROVISIONED_DEVICE* deviceToUse = IoTHubAccount_GetSASDevice(g_iothubAcctInfo);
 
@@ -924,14 +947,8 @@ void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER prot
 
     if (setTimeoutOption)
     {
-        if ((strcmp(faultOperationType, "InvokeThrottling") == 0) ||
-            (strcmp(faultOperationType, "InvokeMaxMessageQuota") == 0) ||
-            (strcmp(faultOperationType, "InvokeAuthError") == 0)
-            )
-        {
-            IOTHUB_CLIENT_RESULT setOptionResult = IoTHubClient_SetOption(iotHubClientHandle, "event_send_timeout_secs", "30");
-            ASSERT_ARE_EQUAL_WITH_MSG(IOTHUB_CLIENT_RESULT, IOTHUB_CLIENT_OK, setOptionResult, "Failure setting transport timeout");
-        }
+        IOTHUB_CLIENT_RESULT setOptionResult = IoTHubClient_SetOption(iotHubClientHandle, "event_send_timeout_secs", "30");
+        ASSERT_ARE_EQUAL_WITH_MSG(IOTHUB_CLIENT_RESULT, IOTHUB_CLIENT_OK, setOptionResult, "Failure setting transport timeout");
     }
 
     // Send the Event from the client
@@ -939,7 +956,7 @@ void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER prot
     d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
 
     // Wait for confirmation that the event was recevied
-    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage);
+    bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage, IOTHUB_CLIENT_CONFIRMATION_OK);
     ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
 
     // Send the Fault Control Event from the client
@@ -955,19 +972,10 @@ void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER prot
         (strcmp(faultOperationType, "InvokeAuthError") == 0)
         )
     {
-        // Send the Event from the client and expect no answer (after 60 sec wait)
         (void)printf("Sending message and expect no confirmation...\r\n");
         d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
-        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage);
-        ASSERT_IS_FALSE_WITH_MSG(dataWasRecv, "Service still answering...\r\n"); // was received by the callback...
-
-        // Send the Event from the client
-        (void)printf("Send message after the server fault and wait for confirmation...\r\n");
-        d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
-
-        // Wait for confirmation that the event was recevied
-        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage);
-        ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
+        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage, IOTHUB_CLIENT_CONFIRMATION_ERROR);
+        ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IoT Hub...\r\n"); // was received by the callback...
     }
     else if ((strcmp(faultOperationType, "ShutDownAmqp") == 0) ||
         (strcmp(faultOperationType, "ShutDownMqtt") == 0))
@@ -975,7 +983,7 @@ void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER prot
         // Send the Event from the client and expect no answer and no recovery (after 60 sec wait)
         (void)printf("ShutDownAmqp - Sending message and expect no confirmation...\r\n");
         d2cMessage = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
-        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage);
+        dataWasRecv = client_wait_for_d2c_confirmation(d2cMessage, IOTHUB_CLIENT_CONFIRMATION_OK);
         ASSERT_IS_FALSE_WITH_MSG(dataWasRecv, "Service still answering...\r\n"); // was received by the callback...
     }
 
@@ -991,7 +999,6 @@ void e2e_d2c_with_svc_fault_ctrl_no_answer(IOTHUB_CLIENT_TRANSPORT_PROVIDER prot
     // cleanup
     destroy_d2c_message_handle(d2cMessage);
 }
-
 
 EXPECTED_RECEIVE_DATA *service_create_c2d(const char *content)
 {
@@ -1233,42 +1240,42 @@ void e2e_d2c_svc_fault_ctrl_AMQP_kill_C2D_link(IOTHUB_CLIENT_TRANSPORT_PROVIDER 
 
 void e2e_d2c_svc_fault_ctrl_AMQP_throttling_reconnect(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol)
 {
-    e2e_d2c_with_svc_fault_ctrl_no_answer(protocol, "InvokeThrottling", "20", "1", true);
+    e2e_d2c_with_svc_fault_ctrl_error_message_callback(protocol, "InvokeThrottling", "20", "1", true);
 }
 
 void e2e_d2c_svc_fault_ctrl_AMQP_message_quota_exceeded(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol)
 {
-    e2e_d2c_with_svc_fault_ctrl_no_answer(protocol, "InvokeMaxMessageQuota", "20", "1", true);
+    e2e_d2c_with_svc_fault_ctrl_error_message_callback(protocol, "InvokeMaxMessageQuota", "20", "1", true);
 }
 
 void e2e_d2c_svc_fault_ctrl_AMQP_auth_error(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol)
 {
-    e2e_d2c_with_svc_fault_ctrl_no_answer(protocol, "InvokeAuthError", "20", "1", true);
+    e2e_d2c_with_svc_fault_ctrl_error_message_callback(protocol, "InvokeAuthError", "20", "1", true);
 }
 
 void e2e_d2c_svc_fault_ctrl_AMQP_shut_down(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol)
 {
-    e2e_d2c_with_svc_fault_ctrl_no_answer(protocol, "ShutDownAmqp", "byebye", "1", true);
+    e2e_d2c_with_svc_fault_ctrl_with_transport_status(protocol, "ShutDownAmqp", "byebye", "1");
 }
 
 void e2e_d2c_svc_fault_ctrl_MQTT_throttling_reconnect(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol)
 {
-    e2e_d2c_with_svc_fault_ctrl_no_answer(protocol, "InvokeThrottling", "20", "1", false);
+    e2e_d2c_with_svc_fault_ctrl_error_message_callback(protocol, "InvokeThrottling", "20", "1", false);
 }
 
 void e2e_d2c_svc_fault_ctrl_MQTT_message_quota_exceeded(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol)
 {
-    e2e_d2c_with_svc_fault_ctrl_no_answer(protocol, "InvokeMaxMessageQuota", "20", "1", false);
+    e2e_d2c_with_svc_fault_ctrl_error_message_callback(protocol, "InvokeMaxMessageQuota", "20", "1", false);
 }
 
 void e2e_d2c_svc_fault_ctrl_MQTT_auth_error(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol)
 {
-    e2e_d2c_with_svc_fault_ctrl_no_answer(protocol, "InvokeAuthError", "20", "1", false);
+    e2e_d2c_with_svc_fault_ctrl_error_message_callback(protocol, "InvokeAuthError", "20", "1", false);
 }
 
 void e2e_d2c_svc_fault_ctrl_MQTT_shut_down(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol)
 {
-    e2e_d2c_with_svc_fault_ctrl_no_answer(protocol, "ShutDownMqtt", "byebye", "1", false);
+    e2e_d2c_with_svc_fault_ctrl_with_transport_status(protocol, "ShutDownMqtt", "byebye", "1");
 }
 
 //***********************************************************
