@@ -29,10 +29,10 @@ BEGIN_TEST_SUITE(iothubclient_mqtt_dm_e2e_sfc)
     }
 
     //// FAIL - doesn't recover
-    //TEST_FUNCTION(IotHub_Mqtt_Method_Call_svc_fault_ctrl_kill_Tcp)
-    //{
-    //    device_method_e2e_method_call_svc_fault_ctrl_kill_Tcp(MQTT_Protocol);
-    //}
+    TEST_FUNCTION(IotHub_Mqtt_Method_Call_svc_fault_ctrl_kill_Tcp)
+    {
+        device_method_e2e_method_call_svc_fault_ctrl_kill_Tcp(MQTT_Protocol);
+    }
 
     END_TEST_SUITE(iothubclient_mqtt_dm_e2e_sfc)
 

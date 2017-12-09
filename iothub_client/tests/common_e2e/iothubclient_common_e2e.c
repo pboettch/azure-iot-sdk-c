@@ -809,7 +809,10 @@ void e2e_d2c_with_svc_fault_ctrl(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, cons
     (void)printf("Send server fault control message...\r\n");
     d2cMessage = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
 
+    printf("Sleeping after sending fault injection...\n");
     ThreadAPI_Sleep(3000);
+    printf("Woke up after sending fault injection...\n");
+
 
     size_t i;
     for (i = 0; i < 10; i++)
@@ -862,8 +865,8 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
 
     if (0 == strcmp(faultOperationType, "KillAmqpCBSLinkReq"))
     {
-        size_t token_lifetime = 20;
-        IoTHubClient_SetOption(iotHubClientHandle, OPTION_SAS_TOKEN_LIFETIME, (const void*)&token_lifetime);
+        size_t refresh_time = 20;//  BUGBUG - note this is being backed up without actual testing yet...
+        IoTHubClient_SetOption(iotHubClientHandle, OPTION_SAS_TOKEN_REFRESH_TIME, (const void*)&refresh_time);
     }
 
     // Send the Event from the client
@@ -873,11 +876,15 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
     // Wait for confirmation that the event was recevied
     bool dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageInitial, IOTHUB_CLIENT_CONFIRMATION_OK);
     ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IotHub"); // was received by the callback...
-    // destroy_d2c_message_handle(d2cMessageInitial);
 
     // Send the Fault Control Event from the client
     (void)printf("Send server fault control message...\r\n");
     d2cMessageFaultInjection = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
+
+    printf("Sleeping after sending fault injection...\n");
+    ThreadAPI_Sleep(3000);
+    printf("Woke up after sending fault injection...\n");
+
 
     // Wait for connection status change (restored)
     printf("wait for restore...\n");
@@ -926,6 +933,8 @@ void e2e_d2c_with_svc_fault_ctrl_with_transport_status(IOTHUB_CLIENT_TRANSPORT_P
     destroy_d2c_message_handle(d2cMessageFaultInjection);
     destroy_d2c_message_handle(d2cMessageDuringRetry);
 }
+
+extern const TRANSPORT_PROVIDER* MQTT_Protocol(void);
 
 // BUGBUG - tons of dup'd code here
 void e2e_d2c_with_svc_fault_ctrl_error_message_callback(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, const char* faultOperationType, const char* faultOperationCloseReason, const char* faultOperationDelayInSecs, bool setTimeoutOption)
@@ -980,12 +989,13 @@ void e2e_d2c_with_svc_fault_ctrl_error_message_callback(IOTHUB_CLIENT_TRANSPORT_
         // ASSERT_IS_TRUE_WITH_MSG(dataWasRecv, "Failure sending data to IoT Hub...\r\n"); // was received by the callback...
         printf("dataWasRcv1 = <%d>\n", dataWasRecv);
 
-#if 0 // Removing for now -- MQTT wants this for throttling & authError but AMQP doesn't.  AMQP runs right away and is ERROR both times.
-        (void)printf("Send message after the server fault and wait for confirmation...\r\n");
-        d2cMessageDuringRetry = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
-		dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageDuringRetry, IOTHUB_CLIENT_CONFIRMATION_OK);
-		printf("dataWasRcv2 = <%d>\n", dataWasRecv);
-#endif 
+		if (protocol == MQTT_Protocol) 
+		{
+	        (void)printf("Send message after the server fault and wait for confirmation...\r\n");
+	        d2cMessageDuringRetry = client_create_and_send_d2c(iotHubClientHandle, TEST_MESSAGE_CREATE_STRING);
+			dataWasRecv = client_wait_for_d2c_confirmation(d2cMessageDuringRetry, IOTHUB_CLIENT_CONFIRMATION_OK);
+			printf("dataWasRcv2 = <%d>\n", dataWasRecv);
+		}
     }
     else if ((strcmp(faultOperationType, "ShutDownAmqp") == 0) ||
         (strcmp(faultOperationType, "ShutDownMqtt") == 0))
@@ -1186,6 +1196,10 @@ void e2e_c2d_with_svc_fault_ctrl(IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol, cons
 
     (void)printf("Send server fault control message...\r\n");
     d2cMessage = send_error_injection_message(iotHubClientHandle, faultOperationType, faultOperationCloseReason, faultOperationDelayInSecs);
+
+    printf("Sleeping after sending fault injection...\n");
+    ThreadAPI_Sleep(3000);
+    printf("Woke up after sending fault injection...\n");
 
     // Send message
     receiveUserContext->wasFound = false;
